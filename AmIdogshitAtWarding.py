@@ -99,7 +99,7 @@ DEBUG_PRINT = False
 
 def debug(*args):
        if(DEBUG_PRINT):
-              print(args)
+              print(*args)
 
 # Generate dump for exception.
 def oopsi():
@@ -350,5 +350,8 @@ def main():
               print("Program interrupted!")
               oopsi()  
 if __name__ == "__main__":
+       if len(sys.argv) > 1:
+              if(sys.argv[1] in ['DEBUG','debug','-d','-D']):
+                     DEBUG_PRINT = True
        main()
        # print(sanitizeUrl("https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id/blouch/TDP?api_key=RGAPI-a7190d70-2844-473d-acf6-cb32394ca5ae"))
