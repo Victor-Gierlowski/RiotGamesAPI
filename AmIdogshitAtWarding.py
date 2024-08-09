@@ -71,27 +71,35 @@ APIKEY = open('apikey.txt').read();                                             
                       
                             .                                                           '''
 import requests
-import json
 import time
 import os
+import sys
 # Pour les stats.
 import csv
 # pickle permet de générer/restaurer un dump de la mémoire.
 import pickle
 import traceback
 
-#Request List size. Set the amount of request per minute
+#Request List size. Set the amount of request per two minute
 RLSize = 90
 #Request number. 
 RN = 0
-#Request list
+#Request time list.
 RList = []
+#Cached request url list, as a dict.
+CRList = {}
 #Number of seconds for the upper limit of call.
 TIME_LONG_LIMIT = 120
 
 DUMP_FILE_NAME = "unluckely_you_should_not_see_this_file"
 PLAYER_FILENAME = "players.txt"
 CSV_FILENAME = "AmIdogshit_stats.csv"
+DEBUG_PRINT = False
+
+
+def debug(*args):
+       if(DEBUG_PRINT):
+              print(args)
 
 # Generate dump for exception.
 def oopsi():
@@ -105,9 +113,67 @@ def oopsi():
 def times():
        return int(time.time())
 
+def sanitizeUrl(url):
+       surl = url.replace("https://","").replace("http://","")
+       path, *query = surl.split("?",1)
+       subfolders = path.split("/")
+       if query:
+              query = query[0]
+              params = query.split("&")
+              surl_params = [param for param in params if not param.startswith("api_key")]
+              if surl_params:
+                     subfolders.append("&".join(surl_params))
+       return subfolders
+def isCached(url):
+       global CRList
+       path = os.path.join("cache",*sanitizeUrl(url))
+       if CRList.get(path, None) == True:
+              try:
+                     with open(path, 'rb') as filecache:
+                            CRList[path] = pickle.load(filecache)
+              except (pickle.UnpicklingError, EOFError):
+                     print(f"Cache failed on file {path}")
+                     pass
+              return path
+       else:
+              return False
+
+def loadCachedUrl():
+       global CRList
+       CRList = {}
+       if not os.path.isdir("cache"):
+              os.mkdir("cache")
+       path = "cache"
+       loadCachedUrl_recursive_folder(path)
+
+def loadCachedUrl_recursive_folder(folder):
+       for filename in os.listdir(folder):
+              path = os.path.join(folder,filename)
+              if os.path.isdir(path):
+                     loadCachedUrl_recursive_folder(path)
+              elif os.path.isfile(path):
+                     CRList[path] = True
+                     
+
+def stockUrl(url,data):
+       surl = sanitizeUrl(url)
+       filename = surl[-1]
+       sublink = "cache/"
+       for folder in surl[:-1]:
+              if not os.path.isdir(f"{sublink}{folder}"):
+                     os.mkdir(f"{sublink}{folder}")
+              sublink+=f"{folder}/"
+       filecache = open(f"{sublink}{filename}",'wb')
+       pickle.dump(data,filecache)
+       filecache.close()
+
 # Make API calls and control the flowrate.
 def get(url):
-       global RN, RList,RLSize
+       global RN, RList,RLSize, CRList
+       surl = isCached(url)
+       if surl:
+              debug(f"is cached {surl}")
+              return CRList[surl]
        time.sleep(1/25)
        # print(RList,RN)
        #Check to see if this position is not already filled by a call made less than a minute ago.
@@ -125,7 +191,10 @@ def get(url):
               RN = (RN+1)%RLSize
               #-
               if response.status_code == 200:
-                     return response.json()
+                     data = response.json()
+                     CRList[url] = data
+                     stockUrl(url,data)
+                     return data
               else:
                      print(f"Failed to retrieve data: {response.status_code}.  Have you setup the API Key ? Valid Request user ?")
                      print(f"{url}")
@@ -192,7 +261,7 @@ def loadPlayers():
 def VISION(players):
        for player in players:
               player_score = get_vision_score(player['user'],player['tag'])
-              print(f"{player['user']} has theses scores in visions : \n{player_score}")
+              debug(f"{player['user']} has theses scores in visions : \n{player_score}")
               vs = calculate_averages([s[0] for s in player_score],'vision_score')
               vspg = calculate_averages([s[1] for s in player_score],'vision_score_per_gameDuration')
               if not ('stat' in player):
@@ -201,8 +270,8 @@ def VISION(players):
                      player['stat'] = {}
               player['stat'] |= vs
               player['stat'] |= vspg
-              print(f"vision : {vs}, \n vision per time : {vspg}")
-       print(players)
+              debug(f"vision : {vs}, \n vision per time : {vspg}")
+       debug(players)
 
 def write_csv(players):
        data_dict = {f"{item['user']}#{item['tag']}": item['stat'] for item in players}
@@ -238,9 +307,9 @@ def dicho_min(arr):
        return left
 
 def main():
-       global RN, RList, RLSize
+       global RN, RList, RLSize, CRList
+       loadCachedUrl()
        try:
-
               #Check if the players file exist.
               if not (os.path.isfile(PLAYER_FILENAME)):
                      print(f"My brother in Christ, the script is not in your head. Create the {PLAYER_FILENAME} file and put line by line the user and tag you want to compare.")
@@ -282,3 +351,4 @@ def main():
               oopsi()  
 if __name__ == "__main__":
        main()
+       # print(sanitizeUrl("https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id/blouch/TDP?api_key=RGAPI-a7190d70-2844-473d-acf6-cb32394ca5ae"))
