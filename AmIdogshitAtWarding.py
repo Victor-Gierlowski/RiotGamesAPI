@@ -229,7 +229,7 @@ def get_vision_score(NAME,TAG):
                      for player in participants:
                             if player.get('puuid') == puuid:
                                    vision_score = player.get('visionScore')
-                                   table_score += [[vision_score,vision_score/gameDuration]]
+                                   table_score += [[vision_score,vision_score/gameDuration,player.get('win')]]
                                    found = True
                      if not found:
                             print("Well... that's awkward.. This should never happen, the player is not in the game.. that we found with his infos lmao. Riot ?")
@@ -263,14 +263,22 @@ def VISION(players):
               player_score = get_vision_score(player['user'],player['tag'])
               debug(f"{player['user']} has theses scores in visions : \n{player_score}")
               vs = calculate_averages([s[0] for s in player_score],'vision_score')
-              vspg = calculate_averages([s[1] for s in player_score],'vision_score_per_gameDuration')
+              vspg = calculate_averages([s[1] for s in player_score],'vision_score_per_minute')
+              vsw = calculate_averages([s[0] for s in player_score if s[2]], 'vision_score_when_winning')
+              vswpm = calculate_averages([s[1] for s in player_score if s[2]], 'vision_score_when_winning_per_minute')
+              vsl = calculate_averages([s[0] for s in player_score if not s[2]], 'vision_score_when_losing')
+              vslpm = calculate_averages([s[1] for s in player_score if not s[2]], 'vision_score_when_losing_per_minute')
               if not ('stat' in player):
                      player['stat'] = {}
               if not (isinstance(player['stat'],dict)):
                      player['stat'] = {}
               player['stat'] |= vs
               player['stat'] |= vspg
-              debug(f"vision : {vs}, \n vision per time : {vspg}")
+              player['stat'] |= vsw
+              player['stat'] |= vswpm
+              player['stat'] |= vsl
+              player['stat'] |= vslpm
+              debug(f"vision : {vs}, \n vision per minute : {vspg}")
        debug(players)
 
 def write_csv(players):
